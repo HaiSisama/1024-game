@@ -200,6 +200,22 @@ test('isOver: 满盘无相邻相等 true', () => {
 test('isOver: 有空位 false', () => {
   assert(isOver([[2,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]) === false);
 });
+test('tileColor: 0 为 transparent', () => {
+  eq(tileColor(0), 'transparent');
+});
+test('tileColor: 2 薄荷绿', () => {
+  eq(tileColor(2), 'hsl(143, 42%, 86.5%)');
+});
+test('tileColor: 512 杏黄', () => {
+  eq(tileColor(512), 'hsl(47, 42%, 74.5%)');
+});
+test('tileColor: 1024 金色特例', () => {
+  eq(tileColor(1024), '#FFD97A');
+});
+test('tileColor: 2048 及以上深金琥珀', () => {
+  eq(tileColor(2048), '#F5C558');
+  eq(tileColor(4096), '#F5C558');
+});
 
 console.log(`\n${passed} 通过, ${failed} 失败`);
 process.exit(failed === 0 ? 0 : 1);

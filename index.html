@@ -132,6 +132,15 @@
     function isOver(board) {
       return !canMove(board);
     }
+    function tileColor(v) {
+      if (v === 0) return 'transparent';
+      if (v === 1024) return '#FFD97A';
+      if (v >= 2048) return '#F5C558';
+      const exp = Math.log2(v);
+      const hue = 155 - 12 * exp;
+      const light = 88 - 1.5 * exp;
+      return `hsl(${hue}, 42%, ${light}%)`;
+    }
     /* CORE-END */
   </script>
 </body>
