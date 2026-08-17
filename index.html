@@ -78,6 +78,36 @@
     .btn-new { margin-left: auto; border: none; background: var(--accent); color: #fff; font: inherit; font-weight: 700; padding: 10px 24px; border-radius: 999px; cursor: pointer; }
     button:focus-visible { outline: 3px solid rgba(79, 174, 142, 0.5); outline-offset: 2px; }
     .no-anim .tile { transition: none !important; }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(47, 59, 54, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    .overlay.hidden { display: none; }
+    .overlay-card {
+      background: #fff;
+      border-radius: var(--radius);
+      box-shadow: 0 16px 48px rgba(47, 59, 54, 0.2);
+      padding: 28px 32px;
+      text-align: center;
+      max-width: 320px;
+    }
+    .overlay-title { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
+    .overlay-text { font-size: 14px; color: var(--ink-soft); margin-bottom: 20px; }
+    .overlay-actions { display: flex; gap: 10px; justify-content: center; }
+    .overlay-btn { border: none; font: inherit; font-weight: 700; padding: 10px 20px; border-radius: 999px; cursor: pointer; }
+    .overlay-btn.primary { background: var(--accent); color: #fff; }
+    .overlay-btn:not(.primary) { background: var(--cell); color: var(--ink); }
+    .tile-new, .tile-merge { animation: tile-pop 160ms ease-out; }
+    @keyframes tile-pop {
+      0% { scale: 0; }
+      60% { scale: 1.08; }
+      100% { scale: 1; }
+    }
   </style>
 </head>
 <body>
@@ -98,6 +128,16 @@
       <button class="btn-new" id="btnNew">新游戏</button>
     </footer>
   </main>
+  <div class="overlay hidden" id="overlay" aria-live="polite">
+    <div class="overlay-card">
+      <p class="overlay-title" id="overlayTitle"></p>
+      <p class="overlay-text" id="overlayText"></p>
+      <div class="overlay-actions">
+        <button class="overlay-btn primary" id="overlayPrimary"></button>
+        <button class="overlay-btn" id="overlaySecondary"></button>
+      </div>
+    </div>
+  </div>
   <script>
     'use strict';
     /* CORE-START */
@@ -239,6 +279,11 @@
     const scoreEl = document.getElementById('score');
     const bestEl = document.getElementById('best');
     const GAP = 10; // px，与 CSS --gap 一致
+    const overlayEl = document.getElementById('overlay');
+    const overlayTitleEl = document.getElementById('overlayTitle');
+    const overlayTextEl = document.getElementById('overlayText');
+    const overlayPrimaryEl = document.getElementById('overlayPrimary');
+    const overlaySecondaryEl = document.getElementById('overlaySecondary');
 
     function fontSizeFor(value) {
       const digits = String(value).length;
@@ -270,6 +315,7 @@
         this.renderAll();
         this.updateHud();
         this.syncSizeToggle();
+        this.hideOverlay();
       },
 
       renderAll() {
@@ -337,6 +383,10 @@
 
       updateHud() {
         scoreEl.textContent = this.state.score;
+        if (this.state.score > this.state.best) {
+          this.state.best = this.state.score;
+          saveBest(this.state.size, this.state.best);
+        }
         bestEl.textContent = this.state.best;
       },
 
@@ -346,9 +396,90 @@
         });
       },
 
-      handleMove(dir) { /* Task 9 实现 */ },
-      showOverlay(kind) { /* Task 9 实现 */ },
-      hideOverlay() { /* Task 9 实现 */ },
+      handleMove(dir) {
+        if (this.paused || !this.state || this.state.over) return;
+        const plan = planMove(this.state.board, dir);
+        const res = applyMove(this.state, dir);
+        if (!res.moved) return;
+        this.state.board = res.board;
+        this.state.score = res.score;
+        const st = this.state; // 快照：回调时若已重开新局（state 被替换）则放弃
+
+        // 阶段一：所有方块滑向最终落点（合并双方滑到同一格）
+        for (const m of plan) m.t = this.tileAt(m.from.r, m.from.c);
+        // 合并标记：同落点两条目 → keeper 得 mergeValue，loser 从地图移除
+        const byDest = new Map();
+        for (const m of plan) {
+          if (!m.t) continue;
+          const key = m.to.r + ',' + m.to.c;
+          const list = byDest.get(key) || [];
+          list.push(m);
+          byDest.set(key, list);
+        }
+        for (const list of byDest.values()) {
+          if (list.length === 2) {
+            const keeper = list.find(m => !m.merged);
+            const loser = list.find(m => m.merged);
+            keeper.mergeValue = keeper.t.value * 2;
+            this.tiles.delete(loser.t.id);
+            loser.removeEl = true;
+          }
+        }
+        for (const m of plan) {
+          if (!m.t) continue;
+          m.t.row = m.to.r;
+          m.t.col = m.to.c;
+          this.positionTile(m.t);
+        }
+
+        // 阶段二：过渡结束后落地
+        window.setTimeout(() => {
+          if (this.state !== st) return; // 期间已重开新局
+          for (const m of plan) {
+            if (m.removeEl) m.t.el.remove();
+            if (m.mergeValue) {
+              m.t.value = m.mergeValue;
+              m.t.el.textContent = m.mergeValue;
+              m.t.el.style.backgroundColor = tileColor(m.mergeValue);
+              m.t.el.style.fontSize = (this.geometry().cell * fontSizeFor(m.mergeValue)) + 'px';
+              m.t.el.classList.add('tile-merge');
+              if (m.mergeValue >= 1024) m.t.el.classList.add('gold');
+              window.setTimeout(() => m.t.el.classList.remove('tile-merge'), 160);
+            }
+          }
+          if (res.tile) this.addTile(res.tile.row, res.tile.col, res.tile.value, true);
+          this.updateHud();
+          if (isWin(this.state.board) && !this.state.won) {
+            this.state.won = true;
+            this.showOverlay('win');
+          } else if (isOver(this.state.board)) {
+            this.state.over = true;
+            this.showOverlay('over');
+          }
+        }, this.REDUCED ? 0 : 120);
+      },
+
+      showOverlay(kind) {
+        this.paused = true;
+        this.overlayKind = kind;
+        if (kind === 'win') {
+          overlayTitleEl.textContent = '🎉 1024！';
+          overlayTextEl.textContent = '拼出 1024！可以继续合成更高数字，也可以重新开始。';
+          overlayPrimaryEl.textContent = '继续游戏';
+          overlaySecondaryEl.textContent = '重新开始';
+          overlaySecondaryEl.classList.remove('hidden');
+        } else {
+          overlayTitleEl.textContent = '没有可移动的方块了';
+          overlayTextEl.textContent = '本局得分 ' + this.state.score + ' 分';
+          overlayPrimaryEl.textContent = '再来一局';
+          overlaySecondaryEl.classList.add('hidden');
+        }
+        overlayEl.classList.remove('hidden');
+      },
+
+      hideOverlay() {
+        overlayEl.classList.add('hidden');
+      },
     };
 
     function loadBest(size) {
@@ -359,6 +490,18 @@
       try { localStorage.setItem('best-' + size, String(score)); }
       catch (e) { /* 隐私模式静默降级 */ }
     }
+
+    overlayPrimaryEl.addEventListener('click', () => {
+      if (Game.overlayKind === 'win') {
+        Game.paused = false;
+        Game.hideOverlay();
+      } else {
+        Game.start(Game.state.size);
+      }
+    });
+    overlaySecondaryEl.addEventListener('click', () => {
+      Game.start(Game.state.size);
+    });
 
     Game.start(4);
   </script>
