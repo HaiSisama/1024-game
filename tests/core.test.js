@@ -179,6 +179,27 @@ test('applyMove: 无效移动 → 不生成不计分', () => {
   eq(r.tile, null);
   eq(r.board, s.board);
 });
+test('canMove: 有空位 true', () => {
+  assert(canMove([[2,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]) === true);
+});
+test('canMove: 满盘有相邻相等 true', () => {
+  assert(canMove([[2,2,4,8],[4,8,2,4],[2,4,8,2],[4,2,4,8]]) === true);
+});
+test('canMove: 满盘无相邻相等 false', () => {
+  assert(canMove([[2,4,2,4],[4,2,4,2],[2,4,2,4],[4,2,4,2]]) === false);
+});
+test('isWin: 含 1024', () => {
+  assert(isWin([[1024,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]) === true);
+});
+test('isWin: 只有 512 不算', () => {
+  assert(isWin([[512,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]) === false);
+});
+test('isOver: 满盘无相邻相等 true', () => {
+  assert(isOver([[2,4,2,4],[4,2,4,2],[2,4,2,4],[4,2,4,2]]) === true);
+});
+test('isOver: 有空位 false', () => {
+  assert(isOver([[2,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]) === false);
+});
 
 console.log(`\n${passed} 通过, ${failed} 失败`);
 process.exit(failed === 0 ? 0 : 1);
