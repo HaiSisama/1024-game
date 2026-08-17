@@ -5,8 +5,99 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
   <meta name="theme-color" content="#F6F8F7">
   <title>1024</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F6F8F7;
+      --card: #FFFFFF;
+      --cell: #EEF2F0;
+      --ink: #2F3B36;
+      --ink-soft: #6B7A74;
+      --accent: #4FAE8E;
+      --accent-soft: #DFF2E7;
+      --gap: 10px;
+      --radius: 16px;
+      --shadow: 0 8px 24px rgba(47, 59, 54, 0.08);
+      --font-display: 'Quicksand', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-display);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* 宽度上限同时受视口高度约束：棋盘是正方形，保证头部+棋盘+按钮完整可见（spec §4.3） */
+    .app { width: min(480px, calc(100vw - 32px), calc(100vh - 160px)); display: flex; flex-direction: column; gap: 16px; }
+    @supports (height: 100dvh) {
+      .app { width: min(480px, calc(100vw - 32px), calc(100dvh - 160px)); }
+    }
+    .topbar { display: flex; align-items: center; justify-content: space-between; }
+    .title { font-size: 40px; font-weight: 700; letter-spacing: 1px; }
+    .scores { display: flex; gap: 10px; }
+    .score-card { background: var(--accent-soft); border-radius: 12px; padding: 8px 16px; text-align: center; min-width: 84px; }
+    .score-label { display: block; font-size: 12px; color: var(--ink-soft); }
+    .score-value { font-size: 22px; font-weight: 700; }
+    .board {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: var(--gap);
+      display: grid;
+      grid-template-columns: repeat(var(--size, 4), 1fr);
+      gap: var(--gap);
+      touch-action: none;
+    }
+    .cell { background: var(--cell); border-radius: 10px; }
+    .tile {
+      position: absolute;
+      top: 0;
+      left: 0;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      transition: transform 120ms ease-in-out;
+      z-index: 1;
+    }
+    .controls { display: flex; gap: 12px; align-items: center; }
+    .size-toggle { display: flex; background: var(--cell); border-radius: 999px; padding: 4px; }
+    .size-btn { border: none; background: transparent; font: inherit; font-weight: 600; color: var(--ink-soft); padding: 8px 18px; border-radius: 999px; cursor: pointer; }
+    .size-btn.active { background: #fff; color: var(--ink); box-shadow: 0 2px 6px rgba(47, 59, 54, 0.12); }
+    .btn-new { margin-left: auto; border: none; background: var(--accent); color: #fff; font: inherit; font-weight: 700; padding: 10px 24px; border-radius: 999px; cursor: pointer; }
+    button:focus-visible { outline: 3px solid rgba(79, 174, 142, 0.5); outline-offset: 2px; }
+    .no-anim .tile { transition: none !important; }
+  </style>
 </head>
 <body>
+  <main class="app">
+    <header class="topbar">
+      <h1 class="title">1024</h1>
+      <div class="scores">
+        <div class="score-card"><span class="score-label">分数</span><span class="score-value" id="score">0</span></div>
+        <div class="score-card"><span class="score-label">最高分</span><span class="score-value" id="best">0</span></div>
+      </div>
+    </header>
+    <div class="board" id="board" aria-label="1024 游戏棋盘"></div>
+    <footer class="controls">
+      <div class="size-toggle" id="sizeToggle">
+        <button class="size-btn" data-size="4">4×4</button>
+        <button class="size-btn" data-size="5">5×5</button>
+      </div>
+      <button class="btn-new" id="btnNew">新游戏</button>
+    </footer>
+  </main>
   <script>
     'use strict';
     /* CORE-START */
@@ -142,6 +233,134 @@
       return `hsl(${hue}, 42%, ${light}%)`;
     }
     /* CORE-END */
+
+    // ==================== 视图层 ====================
+    const boardEl = document.getElementById('board');
+    const scoreEl = document.getElementById('score');
+    const bestEl = document.getElementById('best');
+    const GAP = 10; // px，与 CSS --gap 一致
+
+    function fontSizeFor(value) {
+      const digits = String(value).length;
+      return { 1: 0.5, 2: 0.44, 3: 0.36, 4: 0.28 }[digits] || 0.28;
+    }
+
+    const Game = {
+      state: null,
+      tiles: new Map(),   // id -> { id, el, row, col, value }
+      nextId: 1,
+      paused: false,
+      REDUCED: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+
+      start(size) {
+        this.state = {
+          size,
+          board: createBoard(size),
+          score: 0,
+          best: loadBest(size),
+          won: false,
+          over: false,
+        };
+        let b = this.state.board;
+        for (let i = 0; i < 2; i++) b = spawnTile(b).board;
+        this.state.board = b;
+        this.tiles.clear();
+        this.nextId = 1;
+        this.paused = false;
+        this.renderAll();
+        this.updateHud();
+        this.syncSizeToggle();
+      },
+
+      renderAll() {
+        boardEl.classList.add('no-anim');
+        boardEl.style.setProperty('--size', this.state.size);
+        boardEl.innerHTML = '';
+        this.tiles.clear();
+        const n = this.state.size * this.state.size;
+        for (let i = 0; i < n; i++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          boardEl.appendChild(cell);
+        }
+        for (let r = 0; r < this.state.size; r++) {
+          for (let c = 0; c < this.state.size; c++) {
+            const v = this.state.board[r][c];
+            if (v !== 0) this.addTile(r, c, v, false);
+          }
+        }
+        this.layout();
+        requestAnimationFrame(() => boardEl.classList.remove('no-anim'));
+      },
+
+      addTile(row, col, value, animate) {
+        const id = this.nextId++;
+        const el = document.createElement('div');
+        el.className = 'tile' + (animate ? ' tile-new' : '');
+        el.textContent = value;
+        el.style.backgroundColor = tileColor(value);
+        boardEl.appendChild(el);
+        const t = { id, el, row, col, value };
+        this.tiles.set(id, t);
+        this.positionTile(t);
+        return t;
+      },
+
+      positionTile(t) {
+        const s = this.geometry();
+        const x = s.gap + t.col * (s.cell + s.gap);
+        const y = s.gap + t.row * (s.cell + s.gap);
+        t.el.style.transform = `translate(${x}px, ${y}px)`;
+        t.el.style.width = s.cell + 'px';
+        t.el.style.height = s.cell + 'px';
+        t.el.style.fontSize = (s.cell * fontSizeFor(t.value)) + 'px';
+      },
+
+      geometry() {
+        const W = boardEl.clientWidth;
+        const size = this.state.size;
+        return { cell: (W - GAP * (size + 1)) / size, gap: GAP };
+      },
+
+      tileAt(row, col) {
+        for (const t of this.tiles.values()) {
+          if (t.row === row && t.col === col) return t;
+        }
+        return null;
+      },
+
+      layout() {
+        boardEl.classList.add('no-anim');
+        for (const t of this.tiles.values()) this.positionTile(t);
+        requestAnimationFrame(() => boardEl.classList.remove('no-anim'));
+      },
+
+      updateHud() {
+        scoreEl.textContent = this.state.score;
+        bestEl.textContent = this.state.best;
+      },
+
+      syncSizeToggle() {
+        document.querySelectorAll('.size-btn').forEach(btn => {
+          btn.classList.toggle('active', parseInt(btn.dataset.size, 10) === this.state.size);
+        });
+      },
+
+      handleMove(dir) { /* Task 9 实现 */ },
+      showOverlay(kind) { /* Task 9 实现 */ },
+      hideOverlay() { /* Task 9 实现 */ },
+    };
+
+    function loadBest(size) {
+      try { return parseInt(localStorage.getItem('best-' + size), 10) || 0; }
+      catch (e) { return 0; }
+    }
+    function saveBest(size, score) {
+      try { localStorage.setItem('best-' + size, String(score)); }
+      catch (e) { /* 隐私模式静默降级 */ }
+    }
+
+    Game.start(4);
   </script>
 </body>
 </html>
