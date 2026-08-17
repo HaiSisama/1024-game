@@ -185,6 +185,9 @@ test('canMove: 有空位 true', () => {
 test('canMove: 满盘有相邻相等 true', () => {
   assert(canMove([[2,2,4,8],[4,8,2,4],[2,4,8,2],[4,2,4,8]]) === true);
 });
+test('canMove: 满盘仅垂直相邻相等 true', () => {
+  assert(canMove([[2,4,2,4],[2,8,4,8],[4,2,8,4],[8,4,2,8]]) === true);
+});
 test('canMove: 满盘无相邻相等 false', () => {
   assert(canMove([[2,4,2,4],[4,2,4,2],[2,4,2,4],[4,2,4,2]]) === false);
 });
