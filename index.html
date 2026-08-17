@@ -109,6 +109,31 @@
       60% { scale: 1.08; }
       100% { scale: 1; }
     }
+    .tile.gold {
+      box-shadow: 0 0 14px 3px rgba(255, 200, 90, 0.45), 0 0 34px 8px rgba(255, 190, 80, 0.2);
+      animation: gold-breathe 2.8s ease-in-out infinite;
+    }
+    @keyframes gold-breathe {
+      0%, 100% { box-shadow: 0 0 14px 3px rgba(255, 200, 90, 0.45), 0 0 34px 8px rgba(255, 190, 80, 0.2); }
+      50% { box-shadow: 0 0 22px 6px rgba(255, 200, 90, 0.65), 0 0 52px 14px rgba(255, 190, 80, 0.32); }
+    }
+    .gold::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.5) 45%, transparent 60%);
+      background-size: 250% 100%;
+      animation: gold-shine 0.9s ease-out 1;
+    }
+    @keyframes gold-shine {
+      from { background-position: 120% 0; }
+      to { background-position: -120% 0; }
+    }
+    .no-anim .tile, .no-anim .tile::after { transition: none !important; animation: none !important; }
+    @media (prefers-reduced-motion: reduce) {
+      .tile, .gold, .gold::after, .tile-new, .tile-merge { transition: none !important; animation: none !important; }
+    }
   </style>
 </head>
 <body>
@@ -346,6 +371,7 @@
         el.className = 'tile' + (animate ? ' tile-new' : '');
         el.textContent = value;
         el.style.backgroundColor = tileColor(value);
+        if (value >= 1024) el.classList.add('gold');
         boardEl.appendChild(el);
         const t = { id, el, row, col, value };
         this.tiles.set(id, t);
@@ -546,6 +572,12 @@
       const btn = e.target.closest('.size-btn');
       if (!btn) return;
       Game.start(parseInt(btn.dataset.size, 10));
+    });
+
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => Game.layout(), 100);
     });
 
     Game.start(4);
