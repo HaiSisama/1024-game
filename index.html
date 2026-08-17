@@ -420,7 +420,7 @@
           if (list.length === 2) {
             const keeper = list.find(m => !m.merged);
             const loser = list.find(m => m.merged);
-            keeper.mergeValue = keeper.t.value * 2;
+            keeper.mergeValue = res.board[keeper.to.r][keeper.to.c];
             this.tiles.delete(loser.t.id);
             loser.removeEl = true;
           }
@@ -495,6 +495,10 @@
       if (Game.overlayKind === 'win') {
         Game.paused = false;
         Game.hideOverlay();
+        if (isOver(Game.state.board)) {
+          Game.state.over = true;
+          Game.showOverlay('over');
+        }
       } else {
         Game.start(Game.state.size);
       }
