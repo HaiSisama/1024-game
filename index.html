@@ -13,6 +13,23 @@
     function createBoard(size) {
       return Array.from({ length: size }, () => Array(size).fill(0));
     }
+    function slideLine(line) {
+      const tiles = line.filter(v => v !== 0);
+      const out = [];
+      let gained = 0;
+      for (let i = 0; i < tiles.length; i++) {
+        if (i + 1 < tiles.length && tiles[i] === tiles[i + 1]) {
+          const merged = tiles[i] * 2;
+          out.push(merged);
+          gained += merged;
+          i++; // 跳过被合并的伙伴
+        } else {
+          out.push(tiles[i]);
+        }
+      }
+      while (out.length < line.length) out.push(0);
+      return { line: out, gained };
+    }
     /* CORE-END */
   </script>
 </body>

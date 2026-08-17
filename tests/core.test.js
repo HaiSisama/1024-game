@@ -16,6 +16,7 @@ const core = new Function(
   NAMES.map(n => JSON.stringify(n) + ': typeof ' + n + ' !== "undefined" ? ' + n + ' : undefined').join(', ') +
   '};'
 )();
+const { createBoard, slideLine, move, planMove, spawnTile, applyMove, canMove, isWin, isOver, tileColor } = core;
 const missing = NAMES.filter(n => typeof core[n] !== 'function');
 if (missing.length) {
   console.warn('⚠ 以下核心函数尚未实现，相关用例将失败: ' + missing.join(', '));
@@ -44,6 +45,29 @@ function eq(actual, expected, msg) {
 // ---------- 测试用例（各任务追加于此） ----------
 test('createBoard: 4x4 全零', () => {
   eq(core.createBoard(4), [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]);
+});
+test('slideLine: 2+2 合并得 4 分', () => {
+  eq(slideLine([2, 2, 0, 0]), { line: [4, 0, 0, 0], gained: 4 });
+});
+test('slideLine: 每格最多合并一次 [2,2,4]', () => {
+  eq(slideLine([2, 2, 4, 0]), { line: [4, 4, 0, 0], gained: 4 });
+});
+test('slideLine: 靠 0 侧优先 [2,2,2,2]', () => {
+  eq(slideLine([2, 2, 2, 2]), { line: [4, 4, 0, 0], gained: 8 });
+});
+test('slideLine: 先滑后并 [2,0,2]', () => {
+  eq(slideLine([2, 0, 2, 0]), { line: [4, 0, 0, 0], gained: 4 });
+});
+test('slideLine: 无合并只滑动', () => {
+  eq(slideLine([2, 4, 0, 0]), { line: [2, 4, 0, 0], gained: 0 });
+});
+test('slideLine: 空行不变', () => {
+  eq(slideLine([0, 0, 0, 0]), { line: [0, 0, 0, 0], gained: 0 });
+});
+test('slideLine: 不修改入参数组', () => {
+  const input = [2, 2, 4, 0];
+  slideLine(input);
+  eq(input, [2, 2, 4, 0]);
 });
 
 console.log(`\n${passed} 通过, ${failed} 失败`);
