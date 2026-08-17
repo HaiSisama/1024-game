@@ -60,6 +60,34 @@
       }
       return { board: next, moved, gained };
     }
+    function planMove(board, dir) {
+      const size = board.length;
+      const plan = [];
+      for (let i = 0; i < size; i++) {
+        const sources = [];
+        for (let j = 0; j < size; j++) {
+          const [r, c] = cellAt(i, j, dir, size);
+          if (board[r][c] !== 0) sources.push({ r, c, value: board[r][c] });
+        }
+        const { line } = slideLine(sources.map(s => s.value));
+        let p = 0;
+        for (let k = 0; k < line.length; k++) {
+          const v = line[k];
+          if (v === 0) break;
+          const [r, c] = cellAt(i, k, dir, size);
+          if (sources[p].value === v) {
+            plan.push({ from: { r: sources[p].r, c: sources[p].c }, to: { r, c }, merged: false });
+            p++;
+          } else {
+            // 合并：靠近移动方向的方块存活
+            plan.push({ from: { r: sources[p].r, c: sources[p].c }, to: { r, c }, merged: false });
+            plan.push({ from: { r: sources[p + 1].r, c: sources[p + 1].c }, to: { r, c }, merged: true });
+            p += 2;
+          }
+        }
+      }
+      return plan;
+    }
     /* CORE-END */
   </script>
 </body>

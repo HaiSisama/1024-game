@@ -107,6 +107,31 @@ test('move: 不修改入参棋盘', () => {
   move(b, 'left');
   eq(b, [[2,0,2,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]);
 });
+test('planMove: 左移 [2,0,2] 合并落点', () => {
+  const p = planMove([[2,0,2,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]], 'left');
+  const find = (r, c) => p.find(x => x.from.r === r && x.from.c === c);
+  eq(find(0,0), { from: { r:0, c:0 }, to: { r:0, c:0 }, merged: false });
+  eq(find(0,2), { from: { r:0, c:2 }, to: { r:0, c:0 }, merged: true });
+});
+test('planMove: [2,2,4] 合并后 4 补位', () => {
+  const p = planMove([[2,2,4,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]], 'left');
+  const find = (r, c) => p.find(x => x.from.r === r && x.from.c === c);
+  eq(find(0,0), { from: { r:0, c:0 }, to: { r:0, c:0 }, merged: false });
+  eq(find(0,1), { from: { r:0, c:1 }, to: { r:0, c:0 }, merged: true });
+  eq(find(0,2), { from: { r:0, c:2 }, to: { r:0, c:1 }, merged: false });
+});
+test('planMove: 下移合并，靠边者为 keeper', () => {
+  const p = planMove([[2,0,0,0],[2,0,0,0],[0,0,0,0],[0,0,0,0]], 'down');
+  const find = (r, c) => p.find(x => x.from.r === r && x.from.c === c);
+  eq(find(1,0), { from: { r:1, c:0 }, to: { r:3, c:0 }, merged: false });
+  eq(find(0,0), { from: { r:0, c:0 }, to: { r:3, c:0 }, merged: true });
+});
+test('planMove: 右移不合并仅滑动', () => {
+  const p = planMove([[2,4,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]], 'right');
+  const find = (r, c) => p.find(x => x.from.r === r && x.from.c === c);
+  eq(find(0,0), { from: { r:0, c:0 }, to: { r:0, c:2 }, merged: false });
+  eq(find(0,1), { from: { r:0, c:1 }, to: { r:0, c:3 }, merged: false });
+});
 
 console.log(`\n${passed} 通过, ${failed} 失败`);
 process.exit(failed === 0 ? 0 : 1);
