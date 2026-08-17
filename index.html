@@ -508,6 +508,46 @@
       Game.start(Game.state.size);
     });
 
+    // ==================== 输入层：键盘 / 触摸 / 控制按钮 ====================
+    const KEY_DIRS = {
+      ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+      w: 'up', a: 'left', s: 'down', d: 'right',
+      W: 'up', A: 'left', S: 'down', D: 'right',
+    };
+    window.addEventListener('keydown', (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const dir = KEY_DIRS[e.key];
+      if (!dir) return;
+      e.preventDefault();
+      Game.handleMove(dir);
+    });
+
+    let touchStart = null;
+    boardEl.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }, { passive: true });
+    boardEl.addEventListener('touchend', (e) => {
+      if (!touchStart) return;
+      const dx = e.changedTouches[0].clientX - touchStart.x;
+      const dy = e.changedTouches[0].clientY - touchStart.y;
+      touchStart = null;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 30) return;
+      const dir = Math.abs(dx) > Math.abs(dy)
+        ? (dx > 0 ? 'right' : 'left')
+        : (dy > 0 ? 'down' : 'up');
+      Game.handleMove(dir);
+    });
+
+    document.getElementById('btnNew').addEventListener('click', () => {
+      Game.start(Game.state.size);
+    });
+    document.getElementById('sizeToggle').addEventListener('click', (e) => {
+      const btn = e.target.closest('.size-btn');
+      if (!btn) return;
+      Game.start(parseInt(btn.dataset.size, 10));
+    });
+
     Game.start(4);
   </script>
 </body>
